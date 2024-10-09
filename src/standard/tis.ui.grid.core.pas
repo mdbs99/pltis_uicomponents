@@ -1570,7 +1570,7 @@ end;
 
 destructor TTisGridEditLink.Destroy;
 begin
-  fControl.Free;
+  FreeAndNil(fControl);
   inherited Destroy;
 end;
 
@@ -1844,7 +1844,6 @@ procedure TTisGridColumns.HandleClick(P: TPoint; aButton: TMouseButton; aForce,
 var
   vColumnIndex: Integer;
   HitInfo: TVTHeaderHitInfo;
-  NewClickIndex: Integer;
 begin
   if (csDesigning in Header.Treeview.ComponentState) then
     exit;
@@ -1858,7 +1857,6 @@ begin
         exit;
       if Assigned(TTisGrid(Header.Treeview).OnHeaderClick) then
       begin
-        NewClickIndex := ColumnFromPosition(P);
         with HitInfo do
         begin
           X := P.X;
@@ -2784,6 +2782,8 @@ begin
         for vObj in fFilters.Objects do
         begin
           vColumn := fGrid.FindColumnByPropertyName(vObj^.U['field']);
+          if vColumn = nil then
+            Continue;
           if vPropertyName = '' then
             vPropertyName := vColumn.PropertyName;
           if vPropertyName = vColumn.PropertyName then
@@ -3444,7 +3444,7 @@ end;
 procedure TTisGrid.SetFocusedRow(aValue: PDocVariantData);
 begin
   ClearSelection;
-  SetFocusedRowNoClearSelection(aValue);
+  SetFocusedRowNoClearSelection(aValue,{EnsureScrollIntoView=}True);
 end;
 
 procedure TTisGrid.SetOnCutToClipboard(aValue: TNotifyEvent);
@@ -3887,8 +3887,6 @@ begin
 end;
 
 procedure TTisGrid.DoFreeNode(aNode: PVirtualNode);
-var
-  v1: Integer;
 begin
   with fNodeAdapter.GetData(aNode)^ do
   begin
@@ -4537,7 +4535,7 @@ begin
     fReplaceDialog.Options := [frDown, frDisableUpDown, frReplace, frReplaceAll,frEntireScope];
     //fReplaceDialog.OnReplace := ReplaceDialog1Replace;
     if EditLink <> nil  then
-      fReplaceDialog.FindText := TStringEditLink(EditLink).Edit.Text
+      fReplaceDialog.FindText := (EditLink as TStringEditLink).Edit.Text
     else
       fReplaceDialog.FindText := GetCellDataAsString(FocusedNode, FocusedPropertyName);
     fReplaceDialog.Execute;
@@ -5957,13 +5955,13 @@ begin
         vPropName := vObj^.U[vCol.PropertyName];
         if vPropName <> '' then
         begin
-          if VarType(vObj^.Value[vPropName]) in [varDouble, varCurrency, varInteger] then
+          if VarType(vObj^.Value[vCol.PropertyName]) in [varDouble, varCurrency, varInteger] then
             vTmp.AddItemText(vPropName)
           else
             vTmp.AddItemText(QuotedStr(vPropName, '"'));
         end
         else
-          vCols.AddItemText('""');
+          vTmp.AddItemText('""');
       end;
     end;
     result := result + vTmp.ToCsv(aSeparator) + LineEnding;
