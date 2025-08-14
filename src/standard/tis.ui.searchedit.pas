@@ -37,6 +37,18 @@ type
   /// event triggered when user is searching a text
   TOnSearch = procedure(Sender: TObject; const aText: string) of object;
 
+  /// event triggered when the combobox items are created from internal data
+  TOnGetItemText = procedure(Sender: TObject; const aItem: TDocVariantData; var aText: string) of object;
+
+  /// callback called when sorting the search edit data array
+  TItemComparer = function(Sender: TObject; const V1, V2: TDocVariantData): PtrInt of object;
+
+  /// callback allowing user to handle the completion by himself
+  TOnGetCompletionText = function(Sender: TObject; const aText: string): string of object;
+  /// callback allowing user to validate or not a match given the current text and a tried item
+  // - Warning: sUserText is in UpperCase if CaseSensitive is False
+  TOnIsMatchingText = function (const sCompareText, sUserText: string; CaseSensitive, OnlyPrefix: Boolean): Boolean of object;
+
   /// component that allow user searching a typed text in asynchronous mode
   // - it will use an internal TTimer instance
 
@@ -55,6 +67,12 @@ type
     fOnButtonClick: TOnButtonClick;
     fOnBeforeSearch: TOnBeforeSearch;
     fOnSearch: TOnSearch;
+    fOnGetItemText: TOnGetItemText;
+    fItemComparer: TItemComparer;
+    fOnGetCompletionText: TOnGetCompletionText;
+    fOnIsMatchingText: TOnIsMatchingText;
+    fAllowMiddleAutoComplete: Boolean;
+    fSelStart: Integer;
     procedure SetImageList(const aValue: TCustomImageList);
     procedure SetDefault;
     procedure SetUpEdit;
@@ -69,6 +87,7 @@ type
     function GetOnStopSearch: TNotifyEvent;
     procedure SetOnStopSearch(aValue: TNotifyEvent);
     // -------- Timer events end --------
+    function ApplyPreviewedTextCompletion: Boolean;
   protected
     const DefaultSearchMaxHistory = 8;
     const DefaultSearchInterval = 300;
@@ -79,6 +98,7 @@ type
     procedure SetSorted(aValue: boolean); override;
     procedure SetItemIndex(const aValue: integer); override;
     procedure DoSetBounds(aLeft, aTop, aWidth, aHeight: Integer); override;
+    procedure KeyUp(var Key: Word; Shift: TShiftState); override;
     procedure Select; override;
     procedure DoAutoCompleteSelect; override;
     procedure FixDesignFontsPPI(const aDesignTimePPI: Integer); override;
@@ -99,6 +119,13 @@ type
     procedure SetupClearPopupMenu; virtual;
     /// callback to Popup menu to clear all
     procedure DoClearCallback(aSender: TObject);
+    /// workaround to apply the completion when leaving the edit
+    procedure DoExit; override;
+    procedure SetSelStart(Val: integer); override;
+    /// wrapper to call user's comparison function with TDocVariantData instances
+    function RowComparer(const V1, V2: Variant): PtrInt;
+    /// callback to get the completed text based on the current user text
+    function GetCompleteText(aText: string; iSelStart: Integer): string;
   public
     // ------------------------------- inherited methods ----------------------------
     constructor Create(aOwner: TComponent); override;
@@ -117,7 +144,9 @@ type
     /// it will refresh the search
     // - if AutoSearch or aForceDelayed is TRUE, it will enable the timer, otherwise it will call Search directly
     procedure RefreshSearch(aForceDelayed: Boolean = False); virtual;
-    /// it will sort Items and Data by LookupDisplayField
+    /// it will sort Items and Data
+    // - will call ItemComparer if assigned
+    // - otherwise sort by LookupDisplayField
     procedure Sort; virtual;
     // ------------------------------- new properties -------------------------------
     /// direct access to the low-level internal data
@@ -126,6 +155,8 @@ type
     /// it will return the key field value from Data
     // - the ItemIndex will be use as index for Data array
     property KeyValue: Variant read GetKeyValue write SetKeyValue;
+    /// it will return the object value from Data
+    function KeyObject: PDocVariantData;
   published
     // ------------------------------- new properties -------------------------------
     /// if TRUE, it will start the Timer when user start typing
@@ -133,12 +164,17 @@ type
     /// a collection of buttons
     property Buttons: TButtonCollection read fButtons write fButtons;
     property Images: TCustomImageList read fImageList write SetImageList;
+    /// doc variant field used for KeyValue property
     property LookupKeyField: string read fLookupKeyField write fLookupKeyField;
+    /// doc variant field used to populate Completion texts instead of OnGetItemText
     property LookupDisplayField: string read fLookupDisplayField write fLookupDisplayField;
     /// the max history items that it will keep
     property SearchMaxHistory: Integer read fSearchMaxHistory write fSearchMaxHistory default DefaultSearchMaxHistory;
     /// the interval of the internal Timer
     property SearchInterval: Cardinal read GetSearchInterval write SetSearchInterval default DefaultSearchInterval;
+    /// whether completion must strictly be made from start of items
+    // - Set this to False to allow matching in the middle of the item text
+    property AllowMiddleAutoComplete: Boolean read fAllowMiddleAutoComplete write fAllowMiddleAutoComplete default False;
     // ------------------------------- new events -----------------------------------
     /// an event that will be trigger for bkCustom Kind buttons
     property OnButtonClick: TOnButtonClick read fOnButtonClick write fOnButtonClick;
@@ -151,9 +187,22 @@ type
     property OnSearch: TOnSearch read fOnSearch write fOnSearch;
     /// an event that will be trigger when the Timer stops
     property OnStopSearch: TNotifyEvent read GetOnStopSearch write SetOnStopSearch;
+    /// an event that will call the user's custom text association method
+    property OnGetItemText: TOnGetItemText read fOnGetItemText write fOnGetItemText;
+    /// a callback used when sorting the items
+    property ItemComparer: TItemComparer read fItemComparer write fItemComparer;
+    /// an event that will call the user's algorithm for completion
+    property OnGetCompletionText: TOnGetCompletionText read fOnGetCompletionText write fOnGetCompletionText;
+    /// an event that will call the user's algorithm for completion item matching
+    property OnIsMatchingText: TOnIsMatchingText read fOnIsMatchingText write fOnIsMatchingText;
   end;
 
 implementation
+
+uses
+  LCLType,
+  LCLProc,
+  LazUTF8;
 
 { TTisSearchEdit }
 
@@ -209,13 +258,41 @@ begin
   fTimer.OnStopTimer := aValue;
 end;
 
-function TTisSearchEdit.GetKeyValue: Variant;
+function TTisSearchEdit.ApplyPreviewedTextCompletion: Boolean;
+var
+  aItem: String;
 begin
-  result := NULL;
+  if not AllowMiddleAutoComplete then
+    Exit;
+
+  if fSelStart > 0 then
+  begin
+    aItem := Copy(Text, fSelStart + 1);
+    Result := SelectItem(aItem);
+    if Result then
+      EditingDone;
+    fSelStart := 0;
+  end;
+end;
+
+function TTisSearchEdit.KeyObject: PDocVariantData;
+begin
+  result := nil;
   if fData.IsVoid then
     exit;
   if ItemIndex in [0..fData.Count-1] then
-    result := _Safe(fData.Values[ItemIndex])^.Value[fLookupKeyField];
+    result := _Safe(fData.Values[ItemIndex]);
+end;
+
+function TTisSearchEdit.GetKeyValue: Variant;
+var
+  aObject: PDocVariantData;
+begin
+  aObject := KeyObject;
+  result := NULL;
+  if not Assigned(aObject) then
+    exit;
+  result := aObject^.Value[fLookupKeyField];
 end;
 
 procedure TTisSearchEdit.SetKeyValue(aValue: Variant);
@@ -376,6 +453,18 @@ begin
   Clear;
 end;
 
+procedure TTisSearchEdit.DoExit;
+begin
+  ApplyPreviewedTextCompletion;
+  inherited DoExit;
+end;
+
+procedure TTisSearchEdit.SetSelStart(Val: integer);
+begin
+  inherited SetSelStart(Val);
+  fSelStart := Val;
+end;
+
 constructor TTisSearchEdit.Create(aOwner: TComponent);
 begin
   inherited Create(aOwner);
@@ -412,6 +501,7 @@ begin
   fTimer.Enabled := False;
   if aKey = #13 then
   begin
+    ApplyPreviewedTextCompletion;
     SelectAll;
     RefreshSearch;
     AddHistory(Text);
@@ -428,13 +518,22 @@ end;
 procedure TTisSearchEdit.LoadData;
 var
   vObj: PDocVariantData;
+  aItemText: string;
 begin
   if not fData.IsVoid then
     inherited Clear; // clear Items
   if Sorted then
     Sort;
   for vObj in fData.Objects do
-    Items.Add(vObj^.S[StringToUtf8(fLookupDisplayField)]);
+  begin
+    if fLookupDisplayField <> '' then
+      aItemText := vObj^.S[StringToUtf8(fLookupDisplayField)]
+    else
+      aItemText := '';
+    if Assigned(fOnGetItemText) then
+      fOnGetItemText(Self, vObj^, aItemText);
+    Items.Add(aItemText);
+  end;
 end;
 
 procedure TTisSearchEdit.RefreshSearch(aForceDelayed: Boolean);
@@ -446,9 +545,134 @@ begin
     Search;
 end;
 
+function TTisSearchEdit.RowComparer(const V1, V2: Variant): PtrInt;
+begin
+  Result := ItemComparer(Self, _Safe(V1)^, _Safe(V2)^);
+end;
+
+function TTisSearchEdit.GetCompleteText(aText: string; iSelStart: Integer): string;
+
+  function IsMatchingUserText(const sCompareText, sUserText: string; OnlyPrefix: Boolean): Boolean;
+  var
+    sTempText: string;
+  begin
+    Result := False;
+    if OnlyPrefix then
+    begin
+      if cbactSearchCaseSensitive in AutoCompleteText then
+        Result := StartWithExact(sCompareText, sUserText)
+      else
+        Result := StartWith(sCompareText, sUserText);
+    end else
+    begin
+      if cbactSearchCaseSensitive in AutoCompleteText then
+        Result := Pos(sUserText, sCompareText) > 0
+      else
+        Result := PosI(PUtf8Char(sUserText), sCompareText) > 0;
+    end;
+  end;
+
+var
+  sPrefixText: string;
+  Idx, i: Integer;
+  OnlyPrefix, CaseSensitive: Boolean;
+begin
+  Result := aText;
+  if aText = '' then
+    Exit;
+  // if assigned on get complete call it
+  sPrefixText := UTF8Copy(aText, 1, iSelStart);
+  if Assigned(OnGetCompletionText) then
+  begin
+    Result := OnGetCompletionText(Self, sPrefixText);
+    Exit;
+  end;
+
+  CaseSensitive := cbactSearchCaseSensitive in AutoCompleteText;
+  if not CaseSensitive then
+    sPrefixText := UTF8UpperCase(sPrefixText);
+  for i := 0 to Items.Count - 1 do
+  begin
+    Idx := i;
+    if not (cbactSearchAscending in AutoCompleteText) then
+      Idx := Items.Count - i - 1;
+    if Assigned(OnIsMatchingText) then
+    begin
+      if not OnIsMatchingText(Items[Idx], sPrefixText, CaseSensitive, not AllowMiddleAutoComplete) then
+        continue;
+    end
+    else if not IsMatchingUserText(Items[Idx], sPrefixText, not AllowMiddleAutoComplete) then
+      continue;
+
+    Result := Items[Idx];
+    break;
+  end;
+end;
+
 procedure TTisSearchEdit.Sort;
 begin
-  fData.SortArrayByField(StringToUtf8(fLookupDisplayField));
+  if Assigned(ItemComparer) then
+    fData.SortByRow(@RowComparer)
+  else
+    fData.SortArrayByField(StringToUtf8(fLookupDisplayField));
+end;
+
+procedure TTisSearchEdit.KeyUp(var Key: Word; Shift: TShiftState);
+var
+  iSelStart: Integer; // char position
+  sCompleteText, sPrefixText, sResultText: string;
+  Utf8TextLen: Integer;
+begin
+  if Assigned(OnKeyUp) then OnKeyUp(Self, Key, Shift);
+  //SelectAll when hitting return key for AutoSelect feature
+  if (Key = VK_RETURN) then
+  begin
+    if ((cbactEnabled in AutoCompleteText) and Style.HasEditBox) then
+    begin
+      // Only happens with alpha-numeric keys and return key and editable Style
+      SelectAll;
+    end;
+    if AutoSelect then
+    begin
+     SelectAll;
+     if (SelText = Text) then AutoSelected := True;
+    end;
+  end
+  else
+  if ((cbactEnabled in AutoCompleteText) and Style.HasEditBox) then
+  begin
+    //Only happens with alpha-numeric keys and return key and editable Style
+    //DebugLn(['TCustomComboBox.KeyUp ',Key,' ',IsEditableTextKey(Key)]);
+    if IsEditableTextKey(Key) then
+    begin
+      iSelStart := SelStart;//Capture original cursor position
+      //DebugLn(['TCustomComboBox.UTF8KeyPress SelStart=',SelStart,' Text=',Text]);
+      //End of line completion
+      Utf8TextLen := UTF8Length(Text);
+      if (iSelStart < Utf8TextLen) and (cbactEndOfLineComplete in AutoCompleteText) then
+        Exit;
+      sPrefixText := UTF8Copy(Text, 1, iSelStart);
+      sCompleteText := GetCompleteText(Text, iSelStart);
+      if AllowMiddleAutoComplete and (sPrefixText <> sCompleteText) then
+        sCompleteText := Format('%s%s', [sPrefixText, sCompleteText]);
+      if (sCompleteText <> Text) or (Utf8TextLen = 1) then
+      begin
+        sResultText := sCompleteText;
+        if (cbactEndOfLineComplete in AutoCompleteText)
+        and (cbactRetainPrefixCase in AutoCompleteText)
+        and not AllowMiddleAutoComplete then
+        begin //Retain Prefix Character cases
+          UTF8Delete(sResultText, 1, iSelStart);
+        end;
+        if Utf8TextLen = 1 then
+          Text := '';
+        Text := sResultText;
+        SelStart := iSelStart;
+        SelLength := UTF8Length(Text);
+        DoAutoCompleteSelect;
+      end;
+    end;
+  end;
 end;
 
 end.

@@ -18,7 +18,7 @@ unit tis.ui.lvlgraphcontrol;
 interface
 
 uses
-  Classes, SysUtils, types, math, typinfo, FPimage, FPCanvas, AVL_Tree,
+  Classes, SysUtils, types, math, typinfo, FPimage, FPCanvas, Laz_AVL_Tree,
   // LazUtils
   LazLoggerBase, AvgLvlTree,
   // LCL
@@ -2728,7 +2728,7 @@ begin
     end;
 
     // Focus the graph
-    if MouseInClient and not Focused then;
+    if MouseInClient and not Focused then
       SetFocus;
   finally
     EndUpdate;
