@@ -1,6 +1,6 @@
 // -----------------------------------------------------------------
 //    This file is part of Tranquil IT Software
-//    Copyright (C) 2012 - 2024  Tranquil IT https://www.tranquil.it
+//    Copyright (C) 2012 - 2026  Tranquil IT https://www.tranquil.it
 //    All Rights Reserved.
 // ------------------------------------------------------------------
 unit tis.ui.grid.core;
@@ -51,12 +51,78 @@ uses
   tis.ui.searchedit,
   tis.ui.grid.controls,
   tis.ui.grid.chart,
-  tis.frameviewer;
+  tis.frameviewer,
+  ImgList;
 
 type
   ETisGrid = class(Exception);
 
   TTisGrid = class;
+
+  { TTisGridPopupMenuOptions }
+
+  TTisGridPopupMenuOptions = class(TPersistent)
+  private
+    FGrid: TTisGrid;
+    FImages: TCustomImageList;
+    FShowChartImageIndex: TImageIndex;
+    FFindTextImageIndex: TImageIndex;
+    FFindNextImageIndex: TImageIndex;
+    FInsertImageIndex: TImageIndex;
+    FCutToClipboardImageIndex: TImageIndex;
+    FCopyToClipboardImageIndex: TImageIndex;
+    FCopyCellToClipboardImageIndex: TImageIndex;
+    FClearCellImageIndex: TImageIndex;
+    FCopySpecialToClipboardImageIndex: TImageIndex;
+    FPasteImageIndex: TImageIndex;
+    FDeleteRowsImageIndex: TImageIndex;
+    FSelectAllRowsImageIndex: TImageIndex;
+    FExportImageIndex: TImageIndex;
+    FExpandAllImageIndex: TImageIndex;
+    FCollapseAllImageIndex: TImageIndex;
+    FCustomizeColumnsImageIndex: TImageIndex;
+    FAdvancedCustomizeColumnsImageIndex: TImageIndex;
+  protected const
+    DefaultImages = nil;
+    DefaultShowChartImageIndex = -1;
+    DefaultFindTextImageIndex = -1;
+    DefaultFindNextImageIndex = -1;
+    DefaultInsertImageIndex = -1;
+    DefaultCutToClipboardImageIndex = -1;
+    DefaultCopyToClipboardImageIndex = -1;
+    DefaultCopyCellToClipboardImageIndex = -1;
+    DefaultClearCellImageIndex = -1;
+    DefaultCopySpecialToClipboardImageIndex = -1;
+    DefaultPasteImageIndex = -1;
+    DefaultDeleteRowsImageIndex = -1;
+    DefaultSelectAllRowsImageIndex = -1;
+    DefaultExportImageIndex = -1;
+    DefaultExpandAllImageIndex = -1;
+    DefaultCollapseAllImageIndex = -1;
+    DefaultCustomizeColumnsImageIndex = -1;
+    DefaultAdvancedCustomizeColumnsImageIndex = -1;
+  public
+    constructor Create(aGrid: TTisGrid); reintroduce;
+  published
+    property Images: TCustomImageList read FImages write FImages default DefaultImages;
+    property ShowChartImageIndex: TImageIndex read FShowChartImageIndex write FShowChartImageIndex default DefaultShowChartImageIndex;
+    property FindTextImageIndex: TImageIndex read FFindTextImageIndex write FFindTextImageIndex default DefaultFindTextImageIndex;
+    property FindNextImageIndex: TImageIndex read FFindNextImageIndex write FFindNextImageIndex default DefaultFindNextImageIndex;
+    property InsertImageIndex: TImageIndex read FInsertImageIndex write FInsertImageIndex default DefaultInsertImageIndex;
+    property CutToClipboardImageIndex: TImageIndex read FCutToClipboardImageIndex write FCutToClipboardImageIndex default DefaultCutToClipboardImageIndex;
+    property CopyToClipboardImageIndex: TImageIndex read FCopyToClipboardImageIndex write FCopyToClipboardImageIndex default DefaultCopyToClipboardImageIndex;
+    property CopyCellToClipboardImageIndex: TImageIndex read FCopyCellToClipboardImageIndex write FCopyCellToClipboardImageIndex default DefaultCopyCellToClipboardImageIndex;
+    property ClearCellImageIndex: TImageIndex read FClearCellImageIndex write FClearCellImageIndex default DefaultClearCellImageIndex;
+    property CopySpecialToClipboardImageIndex: TImageIndex read FCopySpecialToClipboardImageIndex write FCopySpecialToClipboardImageIndex default DefaultCopySpecialToClipboardImageIndex;
+    property PasteImageIndex: TImageIndex read FPasteImageIndex write FPasteImageIndex default DefaultPasteImageIndex;
+    property DeleteRowsImageIndex: TImageIndex read FDeleteRowsImageIndex write FDeleteRowsImageIndex default DefaultDeleteRowsImageIndex;
+    property SelectAllRowsImageIndex: TImageIndex read FSelectAllRowsImageIndex write FSelectAllRowsImageIndex default DefaultSelectAllRowsImageIndex;
+    property ExportImageIndex: TImageIndex read FExportImageIndex write FExportImageIndex default DefaultExportImageIndex;
+    property ExpandAllImageIndex: TImageIndex read FExpandAllImageIndex write FExpandAllImageIndex default DefaultExpandAllImageIndex;
+    property CollapseAllImageIndex: TImageIndex read FCollapseAllImageIndex write FCollapseAllImageIndex default DefaultCollapseAllImageIndex;
+    property CustomizeColumnsImageIndex: TImageIndex read FCustomizeColumnsImageIndex write FCustomizeColumnsImageIndex default DefaultCustomizeColumnsImageIndex;
+    property AdvancedCustomizeColumnsImageIndex: TImageIndex read FAdvancedCustomizeColumnsImageIndex write FAdvancedCustomizeColumnsImageIndex default DefaultAdvancedCustomizeColumnsImageIndex;
+  end;
 
   /// column data type
   TTisColumnDataType = (
@@ -198,6 +264,9 @@ type
   end;
 
   /// custom Grid Column implementation
+
+  { TTisGridColumn }
+
   TTisGridColumn = class(TVirtualTreeColumn)
   private
     fAllowChart: Boolean;
@@ -211,6 +280,8 @@ type
     function GetTitle: TCaption;
     procedure SetTitle(const aValue: TCaption);
     procedure SetPropertyName(const aValue: RawUtf8);
+    function GetVisible: Boolean;
+    procedure SetVisible(AValue: Boolean);
   protected const
     DefaultAllowChart = True;
     DefaultAllowFilter = True;
@@ -237,6 +308,7 @@ type
     property Required: Boolean read fRequired write fRequired default DefaultRequired;
     property ReadOnly: Boolean read fReadOnly write fReadOnly default DefaultReadOnly;
     property Text: TCaption read GetTitle write SetTitle;
+    property Visible: Boolean read GetVisible write SetVisible stored False;
   end;
 
   /// a custom implementation for Grid Columns
@@ -761,6 +833,7 @@ type
     fData: TDocVariantData;
     fNodeOptions: TTisNodeOptions;
     fPopupMenuOptions: TTisPopupMenuOptions;
+    FPopupMenuImageOptions: TTisGridPopupMenuOptions;
     fExportFormatOptions: TTisGridExportFormatOptions;
     fChartOptions: TTisGridChartOptions;
     fFilterOptions: TTisGridFilterOptions;
@@ -798,7 +871,6 @@ type
     function GetSettings: Variant;
     procedure SetSettings(const aValue: Variant);
     function GetGridSettings: string;
-    procedure SetGridSettings(const aValue: string);
     procedure SetColumnToFind(aValue: integer);
     procedure SetData(const aValue: TDocVariantData);
     function GetMetaData: RawUtf8;
@@ -827,6 +899,10 @@ type
       const aText: string); override;
     procedure DoGetText(aNode: PVirtualNode; aColumn: TColumnIndex;
       aTextType: TVSTTextType; var aText: string); override;
+    {$ifdef WINDOWS}
+    function DoShortenString(aCanvas: TCanvas; Node: PVirtualNode; Column: TColumnIndex; const S: String; aWidth: Integer;
+      aEllipsisWidth: Integer = 0): String; override;
+    {$endif}
     procedure DoInitNode(aParentNode, aNode: PVirtualNode;
       var aInitStates: TVirtualNodeInitStates); override;
     procedure DoFreeNode(aNode: PVirtualNode); override;
@@ -939,6 +1015,8 @@ type
     function GetSelectedRows: TDocVariantData;
     /// select all rows which are matching aValue in Data
     procedure SetSelectedRows(const aValue: TDocVariantData);
+
+    procedure SetGridSettings(const aValue: string);
     // ------------------------------- inherited properties ------------------------
     property RootNodeCount stored False;
     // ------------------------------- new properties ------------------------------
@@ -1103,6 +1181,7 @@ type
     /// saving and restoring user customizations
     property Settings: Variant read GetSettings write SetSettings;
   published
+    property PopupMenuImageOptions: TTisGridPopupMenuOptions read FPopupMenuImageOptions write FPopupMenuImageOptions;
     // ------------------------------- inherited properties ------------------------
     property Action;
     property Align;
@@ -1788,6 +1867,22 @@ begin
   if (Text = '') or (Text = fPropertyName) then
     Text := aValue;
   fPropertyName := aValue;
+end;
+
+function TTisGridColumn.GetVisible: Boolean;
+begin
+  Result := coVisible in Self.Options;
+end;
+
+procedure TTisGridColumn.SetVisible(AValue: Boolean);
+begin
+  if  AValue = (coVisible in Self.Options) then
+    Exit;
+
+  if AValue then
+    Self.Options := Self.Options + [coVisible]
+  else
+    Self.Options := Self.Options - [coVisible];
 end;
 
 constructor TTisGridColumn.Create(aCollection: TCollection);
@@ -3322,10 +3417,7 @@ begin
       begin
         vCol.Position := vObj^.I['position'];
         vCol.Width := vObj^.I['width'];
-        if vObj^.B['visible'] then
-          vCol.Options := vCol.Options + [coVisible]
-        else
-          vCol.Options := vCol.Options - [coVisible];
+        vCol.Visible := vObj^.B['visible'];
         vCol.ChartSettings := vObj^.U['chartsettings'];
       end;
     end;
@@ -3633,6 +3725,56 @@ begin
   fZebraLightness := aValue;
   Invalidate;
 end;
+
+{$ifdef WINDOWS}
+function ShortenStringFast(DC: HDC; const S: string; Width: Integer; EllipsisWidth: Integer = 0): string;
+var
+  Size: TSize;
+  Fit, Len: Integer;
+  WideStr: UnicodeString;
+  MaxTextWidth: Integer;
+begin
+  WideStr := UTF8Decode(S);
+  Len := Length(WideStr);
+
+  if (Len = 0) or (Width <= 0) then
+    Exit('');
+
+  if EllipsisWidth = 0 then
+  begin
+    GetTextExtentPoint32(DC, '...', 3, Size);
+    EllipsisWidth := Size.cx;
+  end;
+
+  MaxTextWidth := Width - EllipsisWidth;
+  if MaxTextWidth <= 0 then
+    Exit('');
+
+  // Ask GDI how many UTF-16 code units fit in MaxTextWidth
+  Fit := 0;
+  if not GetTextExtentExPointW(DC, PWideChar(WideStr), Len, MaxTextWidth, @Fit, nil, Size) then
+    Fit := 0;
+
+  if Fit <= 0 then
+    Exit('');
+
+  Result := UTF8Encode(Copy(WideStr, 1, Fit) + '...');
+end;
+
+function TTisGrid.DoShortenString(aCanvas: TCanvas; Node: PVirtualNode;
+  Column: TColumnIndex; const S: String; aWidth: Integer;
+  aEllipsisWidth: Integer): String;
+var
+  Done: Boolean;
+begin
+  Result := '';
+  Done := False;
+  if Assigned(OnShortenString) then
+    OnShortenString(Self, aCanvas, Node, Column, S, aWidth, Result, Done);
+  if not Done then
+    Result := ShortenStringFast(aCanvas.Handle, S, aWidth, aEllipsisWidth);
+end;
+{$endif}
 
 procedure TTisGrid.Loaded;
 var
@@ -4214,7 +4356,7 @@ const
   cDIVIDER = '-';
 
   procedure _AddItem(const aCaption: string; aShortcut: TShortCut; aEvent: TNotifyEvent;
-    aEnabled: Boolean = True );
+    aEnabled: Boolean = True; aImageIndex: TImageIndex = -1);
   var
     vMenuItem: TMenuItem;
   begin
@@ -4229,6 +4371,7 @@ const
         OnClick := aEvent;
         Enabled := aEnabled;
         Tag := POPUP_ITEM_TAG;
+        ImageIndex := aImageIndex;
       end;
       PopupMenu.Items.Add(vMenuItem);
     end;
@@ -4242,6 +4385,8 @@ const
 begin
   if not Assigned(PopupMenu) then
     PopupMenu := TPopupMenu.Create(self);
+  if (PopupMenu.Images = nil) and (FPopupMenuImageOptions.Images <> nil) then
+    PopupMenu.Images := FPopupMenuImageOptions.Images;
   // fire the original user event, if it exists, for customize its items
   if Assigned(PopupMenu.OnPopup) then
     PopupMenu.OnPopup(PopupMenu);
@@ -4249,62 +4394,62 @@ begin
     _AddDivider;
   if (pmoShowChart in fPopupMenuOptions) and (not fNodeOptions.ShowChildren) then
   begin
-    _AddItem(rsGridChartShow, 0, @DoShowChart, not fData.IsVoid);
+    _AddItem(rsGridChartShow, 0, @DoShowChart, not fData.IsVoid, FPopupMenuImageOptions.ShowChartImageIndex);
     _AddDivider;
   end;
   if pmoShowFind in fPopupMenuOptions then
-    _AddItem(rsGridFind, ShortCut(Ord('F'), [ssCtrl]), @DoFindText, not fData.IsVoid);
+    _AddItem(rsGridFind, ShortCut(Ord('F'), [ssCtrl]), @DoFindText, not fData.IsVoid, FPopupMenuImageOptions.FindTextImageIndex);
   if pmoShowFindNext in fPopupMenuOptions then
-    _AddItem(rsGridFindNext, VK_F3, @DoFindNext, not fData.IsVoid);
+    _AddItem(rsGridFindNext, VK_F3, @DoFindNext, not fData.IsVoid, FPopupMenuImageOptions.FindNextImageIndex);
   {_AddItem(rsFindReplace, ShortCut(Ord('H'), [ssCtrl]), @DoFindReplace);}
   _AddDivider;
   if (pmoShowInsert in fPopupMenuOptions) and (not (toReadOnly in TreeOptions.MiscOptions)) and (not fNodeOptions.ShowChildren) then
-    _AddItem(rsGridInsert, ShortCut(Ord('I'), [ssCtrl]), @DoInsert, Length(Header.Columns.GetVisibleColumns) > 0);
+    _AddItem(rsGridInsert, ShortCut(Ord('I'), [ssCtrl]), @DoInsert, Length(Header.Columns.GetVisibleColumns) > 0, FPopupMenuImageOptions.InsertImageIndex);
   if (pmoShowCut in fPopupMenuOptions) and (not (toReadOnly in TreeOptions.MiscOptions)) and Assigned(fOnCutToClipboard) then
-    _AddItem(rsGridCut, ShortCut(Ord('X'), [ssCtrl]), @DoCutToClipboard, not fData.IsVoid);
+    _AddItem(rsGridCut, ShortCut(Ord('X'), [ssCtrl]), @DoCutToClipboard, not fData.IsVoid, FPopupMenuImageOptions.CutToClipboardImageIndex);
   if (pmoShowCopy in fPopupMenuOptions) and (not fNodeOptions.ShowChildren) then
-    _AddItem(rsGridCopy, ShortCut(Ord('C'), [ssCtrl]), @DoCopyToClipboard, not fData.IsVoid);
+    _AddItem(rsGridCopy, ShortCut(Ord('C'), [ssCtrl]), @DoCopyToClipboard, not fData.IsVoid, FPopupMenuImageOptions.CopyToClipboardImageIndex);
   if pmoShowCopyCell in fPopupMenuOptions then
-    _AddItem(rsGridCopyCell, ShortCut(Ord('C'), [ssCtrl,ssShift]), @DoCopyCellToClipboard, not fData.IsVoid);
+    _AddItem(rsGridCopyCell, ShortCut(Ord('C'), [ssCtrl,ssShift]), @DoCopyCellToClipboard, not fData.IsVoid, FPopupMenuImageOptions.CopyCellToClipboardImageIndex);
   if pmoShowClearCell in fPopupMenuOptions then
-    _AddItem(rsGridClearCell, ShortCut(VK_DELETE, [ssCtrl,ssShift]), @DoClearCell, not fData.IsVoid);
+    _AddItem(rsGridClearCell, ShortCut(VK_DELETE, [ssCtrl,ssShift]), @DoClearCell, not fData.IsVoid, FPopupMenuImageOptions.ClearCellImageIndex);
   if (pmoShowCopySpecial in fPopupMenuOptions) and (not fNodeOptions.ShowChildren) then
-    _AddItem(rsGridCopySpecial, ShortCut(Ord('S'), [ssCtrl,ssShift]), @DoCopySpecialToClipboard, not fData.IsVoid);
+    _AddItem(rsGridCopySpecial, ShortCut(Ord('S'), [ssCtrl,ssShift]), @DoCopySpecialToClipboard, not fData.IsVoid, FPopupMenuImageOptions.CopySpecialToClipboardImageIndex);
   if (pmoShowPaste in fPopupMenuOptions) and (not (toReadOnly in TreeOptions.MiscOptions)) and
     ((toEditable in TreeOptions.MiscOptions) or Assigned(fOnBeforePaste)) and (not fNodeOptions.ShowChildren)  then
-    _AddItem(rsGridPaste, ShortCut(Ord('V'), [ssCtrl]), @DoPaste, Header.UseColumns);
+    _AddItem(rsGridPaste, ShortCut(Ord('V'), [ssCtrl]), @DoPaste, Header.UseColumns, FPopupMenuImageOptions.PasteImageIndex);
   if (pmoShowDelete in fPopupMenuOptions) and
     ((not (toReadOnly in TreeOptions.MiscOptions)) or Assigned(fOnBeforeDeleteRows)) and
     (not fNodeOptions.ShowChildren) then
-    _AddItem(rsGridDeleteRows, ShortCut(VK_DELETE, [ssCtrl]), @DoDeleteRows, not fData.IsVoid);
+    _AddItem(rsGridDeleteRows, ShortCut(VK_DELETE, [ssCtrl]), @DoDeleteRows, not fData.IsVoid, FPopupMenuImageOptions.DeleteRowsImageIndex);
   if (pmoShowSelectAll in fPopupMenuOptions) and (toMultiSelect in TreeOptions.SelectionOptions) and
     (not fNodeOptions.ShowChildren) then
-    _AddItem(rsGridSelectAll, ShortCut(Ord('A'), [ssCtrl]), @DoSelectAllRows, not fData.IsVoid);
+    _AddItem(rsGridSelectAll, ShortCut(Ord('A'), [ssCtrl]), @DoSelectAllRows, not fData.IsVoid, FPopupMenuImageOptions.SelectAllRowsImageIndex);
   if (pmoShowExport in fPopupMenuOptions) and (not fNodeOptions.ShowChildren) then
   begin
     _AddDivider;
     if toMultiSelect in TreeOptions.SelectionOptions then
-      _AddItem(rsGridExportSelected, 0, @DoExport, not fData.IsVoid)
+      _AddItem(rsGridExportSelected, 0, @DoExport, not fData.IsVoid, FPopupMenuImageOptions.ExportImageIndex)
     else
-      _AddItem(rsGridExportAll, 0, @DoExport, not fData.IsVoid);
+      _AddItem(rsGridExportAll, 0, @DoExport, not fData.IsVoid, FPopupMenuImageOptions.ExportImageIndex);
   end;
   {if (HMPrint = 0) then
     _AddItem(rsPrint, ShortCut(Ord('P'), [ssCtrl]), @DoPrint);}
   if IsTreeMode then
   begin
     _AddDivider;
-    _AddItem(rsGridExpandAll, Shortcut(Ord('E'), [ssCtrl, ssShift]), @DoExpandAll);
-    _AddItem(rsGridCollapseAll, Shortcut(Ord('R'), [ssCtrl, ssShift]), @DoCollapseAll);
+    _AddItem(rsGridExpandAll, Shortcut(Ord('E'), [ssCtrl, ssShift]), @DoExpandAll, True, FPopupMenuImageOptions.ExpandAllImageIndex);
+    _AddItem(rsGridCollapseAll, Shortcut(Ord('R'), [ssCtrl, ssShift]), @DoCollapseAll, True, FPopupMenuImageOptions.CollapseAllImageIndex);
   end;
   if (pmoShowCustomizeColumns in fPopupMenuOptions) and Assigned(Header.PopupMenu) then
   begin
     _AddDivider;
-    _AddItem(rsGridCustomizeColumns, 0, @DoCustomizeColumns);
+    _AddItem(rsGridCustomizeColumns, 0, @DoCustomizeColumns, True, FPopupMenuImageOptions.CustomizeColumnsImageIndex);
   end;
   if (csDesigning in ComponentState) or (pmoShowCustomizeGrid in fPopupMenuOptions) then
   begin
     _AddDivider;
-    _AddItem(rsGridAdvancedCustomizeColumns, 0, @DoAdvancedCustomizeColumns);
+    _AddItem(rsGridAdvancedCustomizeColumns, 0, @DoAdvancedCustomizeColumns, True, FPopupMenuImageOptions.AdvancedCustomizeColumnsImageIndex);
   end;
   if Assigned(fOnAfterFillPopupMenu) then
     fOnAfterFillPopupMenu(self);
@@ -4619,22 +4764,26 @@ var
   vAdapter: TClipboardAdapter;
   vRow: TDocVariantData;
   vStr: RawByteString;
+  S: RawUtf8;
+  vPRow: PDocVariantData;
 begin
   if FocusedColumnObject <> nil then
   begin
     vAdapter.Open;
     try
       vAdapter.Clear;
-      vStr := Text[FocusedNode, FocusedColumnObject.Index];
-      if vStr <> '' then
+      S := '';
+      for vPRow in SelectedRows.Objects do
+        AddToCsv(VariantToUtf8(vPRow^[FocusedColumnObject.PropertyName]), S, CRLF);
+      if not vAdapter.Add(cbkText, S[1], Length(S)+1) then
+        ShowMessage('Unable to set text on Clipboard');
+
+      if not fNodeAdapter.IsChild(FocusedNode) then
       begin
-        vAdapter.Add(cbkText, vStr[1], Length(vStr)+1);
-        if not fNodeAdapter.IsChild(FocusedNode) then
-        begin
-          SelectedRows.Reduce(FocusedColumnObject.PropertyName, False, vRow);
-          vStr := vRow.ToJson;
-          vAdapter.Add(cbkJson, vStr[1], Length(vStr));
-        end;
+        SelectedRows.Reduce(FocusedColumnObject.PropertyName, False, vRow);
+        vStr := vRow.ToJson;
+        if not vAdapter.Add(cbkJson, vStr[1], Length(vStr)) then
+          ShowMessage('Unable to set JSon data on Clipboard');
       end;
     finally
       vAdapter.Close;
@@ -5172,6 +5321,7 @@ begin
   fExportFormatOptions := DefaultExportFormatOptions;
   fChartOptions := TTisGridChartOptions.Create(self);
   fFilterOptions := TTisGridFilterOptions.Create(self);
+  FPopupMenuImageOptions := TTisGridPopupMenuOptions.Create(Self);
   fData.InitArray([]);
   DragType := dtVCL;
 
@@ -5206,6 +5356,7 @@ begin
   fData.Clear;
   if Assigned(fFindDlg) then
     FreeAndNil(fFindDlg);
+  FPopupMenuImageOptions.Free;
   fNodeOptions.Free;
   fChartOptions.Free;
   fFilterOptions.Free;
@@ -6076,6 +6227,32 @@ begin
   TextToFind := aText;
   DoFindNext(self);
   result := TextFound;
+end;
+
+{ TTisGridPopupMenuOptions }
+
+constructor TTisGridPopupMenuOptions.Create(aGrid: TTisGrid);
+begin
+  FGrid := aGrid;
+
+  FImages := DefaultImages;
+  FShowChartImageIndex := DefaultShowChartImageIndex;
+  FFindTextImageIndex := DefaultFindTextImageIndex;
+  FFindNextImageIndex := DefaultFindNextImageIndex;
+  FInsertImageIndex := DefaultInsertImageIndex;
+  FCutToClipboardImageIndex := DefaultCutToClipboardImageIndex;
+  FCopyToClipboardImageIndex := DefaultCopyToClipboardImageIndex;
+  FCopyCellToClipboardImageIndex := DefaultCopyCellToClipboardImageIndex;
+  FClearCellImageIndex := DefaultClearCellImageIndex;
+  FCopySpecialToClipboardImageIndex := DefaultCopySpecialToClipboardImageIndex;
+  FPasteImageIndex := DefaultPasteImageIndex;
+  FDeleteRowsImageIndex := DefaultDeleteRowsImageIndex;
+  FSelectAllRowsImageIndex := DefaultSelectAllRowsImageIndex;
+  FExportImageIndex := DefaultExportImageIndex;
+  FExpandAllImageIndex := DefaultExpandAllImageIndex;
+  FCollapseAllImageIndex := DefaultCollapseAllImageIndex;
+  FCustomizeColumnsImageIndex := DefaultCustomizeColumnsImageIndex;
+  FAdvancedCustomizeColumnsImageIndex := DefaultAdvancedCustomizeColumnsImageIndex;
 end;
 
 initialization
