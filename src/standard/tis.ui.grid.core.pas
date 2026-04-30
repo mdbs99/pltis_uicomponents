@@ -3370,6 +3370,7 @@ begin
   vRes := @result;
   vRes^.I['sortcolumn'] := Header.SortColumn;
   vRes^.I['sortdirection'] := ord(Header.SortDirection);
+  vRes^.I['last_fixed_colunm_pos'] := -1;
   vCols := vRes^.A_['columns'];
   for v1 := 0 to Header.Columns.Count-1 do
   begin
@@ -3384,6 +3385,8 @@ begin
         'chartsettings', vCol.ChartSettings
       ])
     );
+    if (coFixed in vCol.Options) and (vRes^.I['last_fixed_colunm_pos'] < vCol.Position) then
+      vRes^.I['last_fixed_colunm_pos'] := vCol.Position;
   end;
   if not FilterOptions.Filters.IsVoid then
     vRes^.A_['filters']^.InitCopy(Variant(FilterOptions.Filters), JSON_[mDefault]);
@@ -3419,6 +3422,10 @@ begin
         vCol.Width := vObj^.I['width'];
         vCol.Visible := vObj^.B['visible'];
         vCol.ChartSettings := vObj^.U['chartsettings'];
+        if vSettings^.GetAsInteger('last_fixed_colunm_pos', vIntValue)
+          and (vCol.Position <= vIntValue)
+          and (not (coFixed in vCol.Options)) then
+          vCol.Options := vCol.Options + [coFixed];
       end;
     end;
     if not vSettings^.A_['filters']^.IsVoid then
