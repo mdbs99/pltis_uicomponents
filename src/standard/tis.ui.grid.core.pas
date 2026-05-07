@@ -5216,7 +5216,7 @@ begin
     // if selected rows is more than one, it will get only selected ones
     if (SelectedCount > 1) and not (vsSelected in vNode^.States) then
       Continue;
-    vValue := vObj^.U[vColumn.PropertyName];
+    vValue := self.StaticText[vNode, vColumn.Index];
     vIndex := vLabels.SearchItemByProp('field', vValue, not FilterOptions.CaseInsensitive);
     if vIndex >= 0 then
     begin
