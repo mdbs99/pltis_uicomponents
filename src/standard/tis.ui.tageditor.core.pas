@@ -1460,8 +1460,11 @@ begin
       end;
       if x + 64 { fComboBox } > ClientWidth then
       begin
-        vMeanWidth := (ClientWidth - 2 * fSpacing - 64 { fComboBox } )
-          div fTags.Count - fSpacing;
+        if fTags.Count>0 then
+          vMeanWidth := (ClientWidth - 2 * fSpacing - 64 { fComboBox } )
+            div fTags.Count - fSpacing
+        else
+          vMeanWidth := 20;
         x := fSpacing;
         for i := 0 to fTags.Count - 1 do
         begin
