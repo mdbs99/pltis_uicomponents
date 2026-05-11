@@ -215,6 +215,7 @@ object TisChartForm: TTisChartForm
           Top = 64
           Width = 62
           BorderSpacing.Right = 8
+          Value = 60
           OnChange = seInnerRadiusChange
           TabOrder = 6
         end

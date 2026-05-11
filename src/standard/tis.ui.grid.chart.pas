@@ -306,6 +306,7 @@ begin
   PieChart.Title.Text.Text := PieTitleEdit.Text;
   PieValuesCombo.Items.Clear;
   PieValuesCombo.Items.Add(''); // to user be able to set default, which is to count
+  PieChartPieSeries1.InnerRadiusPercent := seInnerRadius.Value;
   fSavedDataPoints := TStringList.Create;
   with fSaveMarks do
   begin
