@@ -276,6 +276,9 @@ implementation
 uses
   tis.ui.toolbar.editor;
 
+const
+  DESIGNTIME_TAG_DEFAULT = -1000;
+
 { TTisActionsItem }
 
 procedure TTisActionsItem.SetHiddenCategories(aValue: TStrings);
@@ -475,8 +478,14 @@ end;
 { TTisToolBar }
 
 procedure TTisToolBar.Loaded;
+var
+  v1: Integer;
 begin
   inherited Loaded;
+  for v1 := 0 to ButtonCount -1 do
+  begin
+    Buttons[v1].Tag := DESIGNTIME_TAG_DEFAULT;
+  end;
   fDesigntimeSessionValues := SessionValues;
   if not (csDesigning in ComponentState) then
   begin
@@ -547,7 +556,8 @@ begin
       'caption', vCaption,
       'left', vButton.Left,
       'style', vButton.Style,
-      'imageindex', vButton.ImageIndex
+      'imageindex', vButton.ImageIndex,
+      'tag', vButton.Tag
     ]);
     vAction := vButton.Action as TAction;
     if Assigned(vAction) and
@@ -632,8 +642,11 @@ var
           // temporarily removed from the target to change its properties
           Parent := nil;
           Caption := vCaption;
-          Action := vAction;
-          DropdownMenu := vPopup;
+          if vSessionButton^.I['tag'] <> DESIGNTIME_TAG_DEFAULT then
+          begin
+            Action := vAction;
+            DropdownMenu := vPopup;
+          end;
           Style := vStyle;
           Left := vLeft;
           Visible := True;
@@ -782,6 +795,10 @@ begin
       Left := self.Width;
     // show it on the toolbar
     Parent := self;
+    if (csDesigning in ComponentState) then
+      Tag := DESIGNTIME_TAG_DEFAULT  // To know if it's from design
+    else
+      Tag := 0;
   end;
 end;
 
