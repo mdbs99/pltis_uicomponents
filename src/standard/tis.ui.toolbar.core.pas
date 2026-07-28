@@ -162,6 +162,9 @@ type
   TOnAfterCloseEditor = procedure(aSender: TTisToolBar) of object;
 
   /// based on ToolBar, this is our version with steroids
+
+  { TTisToolBar }
+
   TTisToolBar = class(TToolBar)
   private
     fActions: TTisActionsCollection;
@@ -275,9 +278,6 @@ implementation
 
 uses
   tis.ui.toolbar.editor;
-
-const
-  DESIGNTIME_TAG_DEFAULT = -1000;
 
 { TTisActionsItem }
 
@@ -478,14 +478,8 @@ end;
 { TTisToolBar }
 
 procedure TTisToolBar.Loaded;
-var
-  v1: Integer;
 begin
   inherited Loaded;
-  for v1 := 0 to ButtonCount -1 do
-  begin
-    Buttons[v1].Tag := DESIGNTIME_TAG_DEFAULT;
-  end;
   fDesigntimeSessionValues := SessionValues;
   if not (csDesigning in ComponentState) then
   begin
@@ -556,27 +550,29 @@ begin
       'caption', vCaption,
       'left', vButton.Left,
       'style', vButton.Style,
-      'imageindex', vButton.ImageIndex,
-      'tag', vButton.Tag
+      'imageindex', vButton.ImageIndex
     ]);
-    vAction := vButton.Action as TAction;
-    if Assigned(vAction) and
-      Assigned(vAction.ActionList) and
-      Assigned(vAction.ActionList.Owner) then
+    if (not (csDesigning in ComponentState)) and (vButton.Name = ''){not design time button} then
     begin
-      vObj.action := _ObjFast([
-        'owner', vAction.ActionList.Owner.Name,
-        'list', vAction.ActionList.Name,
-        'name', vAction.Name
-      ]);
-    end;
-    vPopup := vButton.DropdownMenu;
-    if Assigned(vPopup) then
-    begin
-      vObj.popup := _ObjFast([
-        'owner', vPopup.Owner.Name,
-        'name', vPopup.Name
-      ]);
+      vAction := vButton.Action as TAction;
+      if Assigned(vAction) and
+        Assigned(vAction.ActionList) and
+        Assigned(vAction.ActionList.Owner) then
+      begin
+        vObj.action := _ObjFast([
+          'owner', vAction.ActionList.Owner.Name,
+          'list', vAction.ActionList.Name,
+          'name', vAction.Name
+        ]);
+      end;
+      vPopup := vButton.DropdownMenu;
+      if Assigned(vPopup) then
+      begin
+        vObj.popup := _ObjFast([
+          'owner', vPopup.Owner.Name,
+          'name', vPopup.Name
+        ]);
+      end;
     end;
     vSessionButtons.AddItem(vObj);
   end;
@@ -619,7 +615,7 @@ var
     // create buttons on the toolbar
     for vSessionButton in vSessionDoc.A_['buttons']^.Objects do
     begin
-      if vSessionButton^.GetAsPVariant('action', vSessionAction) then
+      if (vSessionButton^.S['name'] = '') and vSessionButton^.GetAsPVariant('action', vSessionAction) then
         vAction := Actions.LocateAction(vSessionAction^.owner, vSessionAction^.list, vSessionAction^.name)
       else
         vAction := nil;
@@ -627,7 +623,7 @@ var
         vCaption := vAction.Caption
       else
         vCaption := vSessionButton^.S['caption'];
-      if vSessionButton^.GetAsPVariant('popup', vSessionPopup) then
+      if (vSessionButton^.S['name'] = '') and vSessionButton^.GetAsPVariant('popup', vSessionPopup) then
         vPopup := PopupMenus.LocatePopupMenu(vSessionPopup^.owner, vSessionPopup^.name)
       else
         vPopup := nil;
@@ -642,11 +638,10 @@ var
           // temporarily removed from the target to change its properties
           Parent := nil;
           Caption := vCaption;
-          if vSessionButton^.I['tag'] <> DESIGNTIME_TAG_DEFAULT then
-          begin
+          if Assigned(vAction) then
             Action := vAction;
+          if Assigned(vPopup) then
             DropdownMenu := vPopup;
-          end;
           Style := vStyle;
           Left := vLeft;
           Visible := True;
@@ -795,10 +790,6 @@ begin
       Left := self.Width;
     // show it on the toolbar
     Parent := self;
-    if (csDesigning in ComponentState) then
-      Tag := DESIGNTIME_TAG_DEFAULT  // To know if it's from design
-    else
-      Tag := 0;
   end;
 end;
 
