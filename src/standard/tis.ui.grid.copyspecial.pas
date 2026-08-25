@@ -18,7 +18,6 @@ uses
   Dialogs,
   ExtCtrls,
   Buttons,
-  DefaultTranslator,
   StdCtrls;
 
 type
