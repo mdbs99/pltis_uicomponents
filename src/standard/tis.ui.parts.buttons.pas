@@ -36,6 +36,9 @@ type
   TButtonCollection = class;
 
   /// define a item for the collection
+
+  { TButtonItem }
+
   TButtonItem = class(TCollectionItem)
   private
     fButton: TSpeedButton;
@@ -52,6 +55,7 @@ type
     procedure SetImages(const aValue: TCustomImageList);
     function GetImageIndex: TImageIndex;
     procedure SetImageIndex(const aValue: TImageIndex);
+    function StoreGlyph: Boolean;
   protected
     const DefaultFlat = True;
   protected
@@ -65,7 +69,7 @@ type
     /// if the button will be flat mode
     property Flat: Boolean read GetFlat write SetFlat default DefaultFlat;
     /// button icon
-    property Glyph: TBitmap read GetGlyph write SetGlyph;
+    property Glyph: TBitmap read GetGlyph write SetGlyph stored StoreGlyph;
     /// imagelist
     property Images: TCustomImageList read GetImages write SetImages default nil;
     property ImageIndex: TImageIndex read GetImageIndex write SetImageIndex default -1;
@@ -219,6 +223,11 @@ begin
   //if (Buttons.Images <> nil) and (aValue > -1) then
   //  Buttons.Images.GetBitmap(Self.ImageIndex, Self.Glyph);
   Button.Invalidate;
+end;
+
+function TButtonItem.StoreGlyph: Boolean;
+begin
+  Result := ImageIndex = -1;
 end;
 
 function TButtonItem.Buttons: TButtonCollection;
