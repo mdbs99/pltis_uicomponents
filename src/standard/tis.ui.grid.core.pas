@@ -4559,7 +4559,8 @@ end;
 
 function TTisGrid.Add(aData: PDocVariantData): Integer;
 var
-  vObj: PDocVariantData;
+  vNewData: TDocVariantData;
+  vObj, vTarget: PDocVariantData;
   vAborted: Boolean;
 begin
   result := -1;
@@ -4570,15 +4571,30 @@ begin
     if vAborted then
       exit;
   end;
+
+  if Assigned(fKeyFieldsList) then
+  begin
+    // Preserve the original data until LoadData captures selection.
+    vNewData.InitCopy(Variant(fData), fData.Options);
+    vTarget := @vNewData;
+  end
+  else
+    vTarget := @fData;
+
   case aData^.Kind of
     dvArray:
       for vObj in aData^.Objects do
-        result := fData.AddItem(variant(vObj^));
+        result := vTarget^.AddItem(variant(vObj^));
     dvObject:
-      result := fData.AddItem(variant(aData^));
+      result := vTarget^.AddItem(variant(aData^));
   end;
   if result > -1 then
-    LoadData;
+  begin
+    if vTarget = @fData then
+      LoadData
+    else
+      LoadData(vTarget);
+  end;
 end;
 
 function TTisGrid.DoCompareByRow(const aPropertyName: RawUtf8; const aRow1,
@@ -6010,18 +6026,32 @@ end;
 
 procedure TTisGrid.DeleteRows(aRows: PDocVariantData);
 var
-  vObj: PDocVariantData;
+  vNewData: TDocVariantData;
+  vObj, vTarget: PDocVariantData;
   v1: Integer;
 begin
   if aRows = nil then
     exit;
+
+  if Assigned(fKeyFieldsList) then
+  begin
+    // Preserve the original data until LoadData captures selection.
+    vNewData.InitCopy(Variant(fData), fData.Options);
+    vTarget := @vNewData;
+  end
+  else
+    vTarget := @fData;
+
   for vObj in aRows^.Objects do
   begin
     // remove from Data
-    for v1 := fData.Count - 1 downto 0 do
-      if _Safe(fData.Values[v1])^.Equals(vObj^) then
-        fData.Delete(v1);
-    LoadData;
+    for v1 := vTarget^.Count - 1 downto 0 do
+      if _Safe(vTarget^.Values[v1])^.Equals(vObj^) then
+        vTarget^.Delete(v1);
+    if vTarget = @vTarget then
+      LoadData
+    else
+      LoadData(@vNewData);
     // go to the last (new) row, if user has deleted latest ones
     if FocusedRow = nil then
       FocusedRow := GetNodeAsPDocVariantData(GetLast);
