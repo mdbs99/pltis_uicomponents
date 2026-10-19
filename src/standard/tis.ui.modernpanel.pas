@@ -332,6 +332,7 @@ begin
   else
     BackCol := clWhite;
 
+  Color := BackCol;
   Canvas.Brush.Style := bsSolid;
   Canvas.Brush.Color := BackCol;
   Canvas.Pen.Style := psClear;
