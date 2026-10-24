@@ -280,7 +280,7 @@ begin
   result := nil;
   if fData.IsVoid then
     exit;
-  if ItemIndex in [0..fData.Count-1] then
+  if (ItemIndex >= 0) and (ItemIndex < fData.Count) then
     result := _Safe(fData.Values[ItemIndex]);
 end;
 

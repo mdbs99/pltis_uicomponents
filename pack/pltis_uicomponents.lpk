@@ -136,13 +136,13 @@ end;"/>
     </i18n>
     <RequiredPkgs Count="7">
       <Item1>
-        <PackageName Value="TAChartLazarusPkg"/>
+        <PackageName Value="pltis_synedit"/>
       </Item1>
       <Item2>
-        <PackageName Value="DateTimeCtrls"/>
+        <PackageName Value="TAChartLazarusPkg"/>
       </Item2>
       <Item3>
-        <PackageName Value="SynEdit"/>
+        <PackageName Value="DateTimeCtrls"/>
       </Item3>
       <Item4>
         <PackageName Value="pltis_utils"/>

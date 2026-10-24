@@ -4559,7 +4559,8 @@ end;
 
 function TTisGrid.Add(aData: PDocVariantData): Integer;
 var
-  vObj: PDocVariantData;
+  vNewData: TDocVariantData;
+  vObj, vTarget: PDocVariantData;
   vAborted: Boolean;
 begin
   result := -1;
@@ -4570,15 +4571,30 @@ begin
     if vAborted then
       exit;
   end;
+
+  if Assigned(fKeyFieldsList) then
+  begin
+    // Preserve the original data until LoadData captures selection.
+    vNewData.InitCopy(Variant(fData), fData.Options);
+    vTarget := @vNewData;
+  end
+  else
+    vTarget := @fData;
+
   case aData^.Kind of
     dvArray:
       for vObj in aData^.Objects do
-        result := fData.AddItem(variant(vObj^));
+        result := vTarget^.AddItem(variant(vObj^));
     dvObject:
-      result := fData.AddItem(variant(aData^));
+      result := vTarget^.AddItem(variant(aData^));
   end;
   if result > -1 then
-    LoadData;
+  begin
+    if vTarget = @fData then
+      LoadData
+    else
+      LoadData(vTarget);
+  end;
 end;
 
 function TTisGrid.DoCompareByRow(const aPropertyName: RawUtf8; const aRow1,
@@ -5439,40 +5455,129 @@ end;
 procedure TTisGrid.LoadData(const NewGridData: PDocVariantdata);
 
   procedure _ViewInTreeMode;
-  var
-    v1: PtrInt;
-    vDoc, vObj: PDocVariantData;
-    vNode: PVirtualNode;
-    vKeys: TRawUtf8DynArray;
-    vParents: TRawUtf8DynArray;
-    vEqual: Boolean;
-  begin
-    DynArrayFakeLength(@vKeys, 1);
-    DynArrayFakeLength(@vParents, 1);
-    StringDynArrayToRawUtf8DynArray(fKeyFieldsList, vKeys);
-    StringDynArrayToRawUtf8DynArray(fParentKeyFieldsList, vParents);
-    vNode := GetFirst(True);
-    while vNode <> nil do
+    function _CompositeKey(aDoc: PDocVariantData; const aFields: TRawUtf8DynArray): string;
+    var
+      i: PtrInt;
+      Part: RawUtf8;
     begin
-      vDoc := GetNodeAsPDocVariantData(vNode);
-      if vDoc <> nil then
+      Result := '';
+
+      if not Assigned(aDoc) then
+        Exit;
+      for i := Low(aFields) to High(aFields) do
       begin
-        for vObj in fData.Objects do
-        begin
-          vEqual := True;
-          for v1 := low(vParents) to high(vParents) do
-          begin
-            if vDoc^.U[vParents[v1]] <> vObj^.U[vKeys[v1]] then
-            begin
-              vEqual := False;
-              break;
-            end;
-          end;
-          if vEqual then
-            MoveTo(vNode, GetNodeBy(vObj, True), amAddChildLast, False);
-        end;
+        Part := aDoc^.U[aFields[i]];
+        {
+          Length-prefix every value so that composite keys cannot collide.
+          For example:
+            ['ab', 'c']  => 2:ab|1:c|
+            ['a', 'bc']  => 1:a|2:bc|
+        }
+        Result := Result + IntToStr(Length(Part)) + ':' + Utf8ToString(Part) + '|';
       end;
-      vNode := GetNext(vNode, True);
+    end;
+
+  var
+    Keys: TRawUtf8DynArray;
+    ParentKeys: TRawUtf8DynArray;
+
+    NodeIndex: TStringList;
+    Nodes: array of PVirtualNode;
+
+    Node: PVirtualNode;
+    ParentNode: PVirtualNode;
+    Row: PDocVariantData;
+
+    Key: string;
+    ParentKey: string;
+
+    NodeCount: PtrInt;
+    ParentIndex: Integer;
+  begin
+    DynArrayFakeLength(@Keys, 1);
+    DynArrayFakeLength(@ParentKeys, 1);
+
+    StringDynArrayToRawUtf8DynArray(fKeyFieldsList, Keys);
+    StringDynArrayToRawUtf8DynArray(fParentKeyFieldsList, ParentKeys);
+
+    NodeIndex := TStringList.Create;
+    try
+      NodeIndex.Sorted := True;
+      NodeIndex.CaseSensitive := True;
+      {
+        This matches GetNodeBy's current behavior reasonably closely:
+        if duplicate keys exist, use the first corresponding node.
+        Ideally, duplicate key values should instead be rejected.
+      }
+      NodeIndex.Duplicates := dupIgnore;
+
+      {
+        At this point every record is still a root node.
+        Preallocate using the expected number of records.
+      }
+      SetLength(Nodes, fData.Count);
+      NodeCount := 0;
+
+      Node := GetFirst(True);
+      while Assigned(Node) do
+      begin
+        Row := GetNodeAsPDocVariantData(Node, False);
+
+        if Assigned(Row) then
+        begin
+          if NodeCount >= Length(Nodes) then
+            SetLength(Nodes, NodeCount + 256);
+
+          Nodes[NodeCount] := Node;
+          Inc(NodeCount);
+
+          Key := _CompositeKey(Row, Keys);
+
+          if NodeIndex.IndexOf(Key) < 0 then
+          begin
+            {
+              TStringList does not own these objects.
+              We only use its Objects array to store node pointers.
+            }
+            NodeIndex.AddObject(Key, TObject(PtrUInt(Node)));
+          end;
+        end;
+
+        Node := GetNext(Node, True);
+      end;
+
+      SetLength(Nodes, NodeCount);
+
+      {
+        Do not enumerate the tree while changing its hierarchy.
+        Enumerate the node pointer array collected above instead.
+      }
+      for Node in Nodes do
+      begin
+        Row := GetNodeAsPDocVariantData(Node, False);
+
+        if not Assigned(Row) then
+          Continue;
+
+        ParentKey := _CompositeKey(Row, ParentKeys);
+        ParentIndex := NodeIndex.IndexOf(ParentKey);
+
+        if ParentIndex < 0 then
+          Continue;
+
+        ParentNode := PVirtualNode(PtrUInt(NodeIndex.Objects[ParentIndex]));
+
+        if not Assigned(ParentNode) then
+          Continue;
+
+        { Protect against a record referencing itself. }
+        if ParentNode = Node then
+          Continue;
+
+        MoveTo(Node, ParentNode, amAddChildLast, False);
+      end;
+    finally
+      NodeIndex.Free;
     end;
   end;
 
@@ -5921,18 +6026,32 @@ end;
 
 procedure TTisGrid.DeleteRows(aRows: PDocVariantData);
 var
-  vObj: PDocVariantData;
+  vNewData: TDocVariantData;
+  vObj, vTarget: PDocVariantData;
   v1: Integer;
 begin
   if aRows = nil then
     exit;
+
+  if Assigned(fKeyFieldsList) then
+  begin
+    // Preserve the original data until LoadData captures selection.
+    vNewData.InitCopy(Variant(fData), fData.Options);
+    vTarget := @vNewData;
+  end
+  else
+    vTarget := @fData;
+
   for vObj in aRows^.Objects do
   begin
     // remove from Data
-    for v1 := fData.Count - 1 downto 0 do
-      if _Safe(fData.Values[v1])^.Equals(vObj^) then
-        fData.Delete(v1);
-    LoadData;
+    for v1 := vTarget^.Count - 1 downto 0 do
+      if _Safe(vTarget^.Values[v1])^.Equals(vObj^) then
+        vTarget^.Delete(v1);
+    if vTarget = @vTarget then
+      LoadData
+    else
+      LoadData(@vNewData);
     // go to the last (new) row, if user has deleted latest ones
     if FocusedRow = nil then
       FocusedRow := GetNodeAsPDocVariantData(GetLast);

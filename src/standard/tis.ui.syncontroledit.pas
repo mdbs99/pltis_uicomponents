@@ -65,7 +65,7 @@ implementation
 
 {$if laz_fullversion >= 4990000}
 uses
-  LazEditTextAttributes;
+  tis.LazEditTextAttributes;
 {$endif}
 
 constructor TTisControlSynEditor.Create(AOwner: TComponent);

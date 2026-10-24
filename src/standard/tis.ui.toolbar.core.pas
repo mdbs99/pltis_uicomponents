@@ -162,6 +162,9 @@ type
   TOnAfterCloseEditor = procedure(aSender: TTisToolBar) of object;
 
   /// based on ToolBar, this is our version with steroids
+
+  { TTisToolBar }
+
   TTisToolBar = class(TToolBar)
   private
     fActions: TTisActionsCollection;
@@ -549,24 +552,27 @@ begin
       'style', vButton.Style,
       'imageindex', vButton.ImageIndex
     ]);
-    vAction := vButton.Action as TAction;
-    if Assigned(vAction) and
-      Assigned(vAction.ActionList) and
-      Assigned(vAction.ActionList.Owner) then
+    if (not (csDesigning in ComponentState)) and (vButton.Name = ''){not design time button} then
     begin
-      vObj.action := _ObjFast([
-        'owner', vAction.ActionList.Owner.Name,
-        'list', vAction.ActionList.Name,
-        'name', vAction.Name
-      ]);
-    end;
-    vPopup := vButton.DropdownMenu;
-    if Assigned(vPopup) then
-    begin
-      vObj.popup := _ObjFast([
-        'owner', vPopup.Owner.Name,
-        'name', vPopup.Name
-      ]);
+      vAction := vButton.Action as TAction;
+      if Assigned(vAction) and
+        Assigned(vAction.ActionList) and
+        Assigned(vAction.ActionList.Owner) then
+      begin
+        vObj.action := _ObjFast([
+          'owner', vAction.ActionList.Owner.Name,
+          'list', vAction.ActionList.Name,
+          'name', vAction.Name
+        ]);
+      end;
+      vPopup := vButton.DropdownMenu;
+      if Assigned(vPopup) then
+      begin
+        vObj.popup := _ObjFast([
+          'owner', vPopup.Owner.Name,
+          'name', vPopup.Name
+        ]);
+      end;
     end;
     vSessionButtons.AddItem(vObj);
   end;
@@ -609,7 +615,7 @@ var
     // create buttons on the toolbar
     for vSessionButton in vSessionDoc.A_['buttons']^.Objects do
     begin
-      if vSessionButton^.GetAsPVariant('action', vSessionAction) then
+      if (vSessionButton^.S['name'] = '') and vSessionButton^.GetAsPVariant('action', vSessionAction) then
         vAction := Actions.LocateAction(vSessionAction^.owner, vSessionAction^.list, vSessionAction^.name)
       else
         vAction := nil;
@@ -617,7 +623,7 @@ var
         vCaption := vAction.Caption
       else
         vCaption := vSessionButton^.S['caption'];
-      if vSessionButton^.GetAsPVariant('popup', vSessionPopup) then
+      if (vSessionButton^.S['name'] = '') and vSessionButton^.GetAsPVariant('popup', vSessionPopup) then
         vPopup := PopupMenus.LocatePopupMenu(vSessionPopup^.owner, vSessionPopup^.name)
       else
         vPopup := nil;
@@ -632,8 +638,10 @@ var
           // temporarily removed from the target to change its properties
           Parent := nil;
           Caption := vCaption;
-          Action := vAction;
-          DropdownMenu := vPopup;
+          if Assigned(vAction) then
+            Action := vAction;
+          if Assigned(vPopup) then
+            DropdownMenu := vPopup;
           Style := vStyle;
           Left := vLeft;
           Visible := True;

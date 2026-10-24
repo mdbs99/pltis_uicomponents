@@ -40,7 +40,7 @@ begin
     TTisGrid, TTisGridHeaderPopupMenu, TTisTagEditor,
     TTisSearchEdit, TTisToolBar, TTisFormTimeout,
     TTisToggleButton, TTisControlSynEditor, TTisLvlGraphControl,
-    TTisModernPanel]);
+    TTisModernPanel, TTisModernButton]);
   RegisterComponentEditor(TTisGrid, TTisGridComponentEditor);
   RegisterComponentEditor(TTisToolBar, TTisToolBarComponentEditor);
 end;
